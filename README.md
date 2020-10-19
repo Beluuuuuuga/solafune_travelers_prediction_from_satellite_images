@@ -1,1 +1,1 @@
-# solafune_travelers_prediction_from_-satellite_images
+# solafune_travelers_prediction_from_satellite_images
