@@ -4,13 +4,29 @@ import numpy as np
 import os
 import pathlib
 import glob
+import math
 
 import cv2
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import matplotlib.pyplot as plt
 
 from models import v2_model
-from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.callbacks import EarlyStopping, LearningRateScheduler, Callback
+
+
+# 学習率スケジューリング
+def step_decay(epoch):
+    # initial_lrate = 0.001 # 学習率の初期値
+    initial_lrate = 0.01 # 学習率の初期値
+    drop = 0.5 # 減衰率は50%
+    # epochs_drop = 10.0 # 10エポックごとに減衰
+    epochs_drop = 10.0 # 10エポックごとに減衰
+    lrate = initial_lrate * math.pow(
+        drop,
+        math.floor((epoch) / epochs_drop)
+    )
+    return lrate
+
 
 if __name__ == "__main__":
 
@@ -59,13 +75,17 @@ if __name__ == "__main__":
     model = v2_model()
     early_stop = EarlyStopping(monitor='val_loss', patience=7, verbose=1, mode='auto')
 
+    # 動的学習率変化
+    lrate = LearningRateScheduler(step_decay)
+
     history = model.fit(train_datagenerator,
 #                     steps_per_epoch=int(total_train//batch_size),
                     epochs=epochs,
                     validation_data=valid_datagenerator,
 #                     validation_steps=int(total_valid//batch_size),
                     verbose=1,
-                    callbacks=[early_stop])
+                    shuffle=True,
+                    callbacks=[early_stop, lrate])
 
     # 結果保存
     model_path = 'models/' + model_name_prefix + '_model.h5'
