@@ -33,6 +33,7 @@ if __name__ == "__main__":
     args = sys.argv
     model_name_prefix = args[1] # 保存のモデル名
     epochs = int(args[2]) # epochs
+    lrate_flg = args[3]
 
     # csv読み込み
     train = pd.read_csv('traindataset_anotated.csv', names=["image","traveler"]) # headerあり読み込み
@@ -76,16 +77,26 @@ if __name__ == "__main__":
     early_stop = EarlyStopping(monitor='val_loss', patience=7, verbose=1, mode='auto')
 
     # 動的学習率変化
-    lrate = LearningRateScheduler(step_decay)
-
-    history = model.fit(train_datagenerator,
-#                     steps_per_epoch=int(total_train//batch_size),
-                    epochs=epochs,
-                    validation_data=valid_datagenerator,
-#                     validation_steps=int(total_valid//batch_size),
-                    verbose=1,
-                    shuffle=True,
-                    callbacks=[early_stop, lrate])
+    history = None
+    if lrate_flg == "True":
+        lrate = LearningRateScheduler(step_decay)
+        history = model.fit(train_datagenerator,
+    #                     steps_per_epoch=int(total_train//batch_size),
+                        epochs=epochs,
+                        validation_data=valid_datagenerator,
+    #                     validation_steps=int(total_valid//batch_size),
+                        verbose=1,
+                        shuffle=True,
+                        callbacks=[early_stop, lrate])
+    elif lrate_flg == "False":
+        history = model.fit(train_datagenerator,
+    #                     steps_per_epoch=int(total_train//batch_size),
+                        epochs=epochs,
+                        validation_data=valid_datagenerator,
+    #                     validation_steps=int(total_valid//batch_size),
+                        verbose=1,
+                        shuffle=True,
+                        callbacks=[early_stop])
 
     # 結果保存
     model_path = 'models/' + model_name_prefix + '_model.h5'
