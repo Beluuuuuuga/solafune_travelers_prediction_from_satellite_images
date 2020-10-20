@@ -33,11 +33,24 @@ if __name__ == "__main__":
     args = sys.argv
     model_name_prefix = args[1] # 保存のモデル名
     epochs = int(args[2]) # epochs
-    lrate_flg = args[3]
+    lrate_flg = args[3] # True or False
+    log_flg = args[4] # True or False
 
     # csv読み込み
     train = pd.read_csv('traindataset_anotated.csv', names=["image","traveler"]) # headerあり読み込み
+    train_nomarlized = train.copy()
+    train_nomarlized['image'] = train['image']
+    train_nomarlized["traveler"] = np.log1p(train["traveler"])
+
     test = pd.read_csv('testdataset_anotated.csv', names=["image","traveler"]) # headerあり読み込み
+    test_nomarlized = test.copy()
+    test_nomarlized['image'] = test['image']
+    test_nomarlized["traveler"] = np.log1p(test["traveler"])
+
+    if log_flg == "log_True":
+        train = train_nomarlized
+        test = test_nomarlized
+    else: pass
 
     target_size = (512, 512)
     batch_size = 4
@@ -71,14 +84,13 @@ if __name__ == "__main__":
         class_mode="raw" # for regression
     )
 
-    
     # 学習
     model = v2_model()
     early_stop = EarlyStopping(monitor='val_loss', patience=7, verbose=1, mode='auto')
 
     # 動的学習率変化
     history = None
-    if lrate_flg == "True":
+    if lrate_flg == "lrate_True":
         lrate = LearningRateScheduler(step_decay)
         history = model.fit(train_datagenerator,
     #                     steps_per_epoch=int(total_train//batch_size),
@@ -88,7 +100,7 @@ if __name__ == "__main__":
                         verbose=1,
                         shuffle=True,
                         callbacks=[early_stop, lrate])
-    elif lrate_flg == "False":
+    elif lrate_flg == "lrate_False":
         history = model.fit(train_datagenerator,
     #                     steps_per_epoch=int(total_train//batch_size),
                         epochs=epochs,
@@ -126,9 +138,11 @@ if __name__ == "__main__":
         evaluate_img = np.array(evaluate_img / 255.)
         evaluate_img = evaluate_img.reshape(1, 512, 512, 3)
         train_y_log1p = model.predict(evaluate_img)[0][0]
-    #     train_y_log1p_inverse = np.exp(train_y_log1p) - 1
-        
-    #     upload.loc[upload['image'] == _path, 'traveler'] = int(train_y_log1p_inverse)
+
+        # 対数変換を元に戻す
+        if log_flg == "log_True":
+            train_y_log1p = np.exp(train_y_log1p) - 1
+
         upload.loc[upload['image'] == _path, 'traveler'] = int(train_y_log1p)
     
     sub_csv_path = 'csvs/submit/' + model_name_prefix + '.csv'
