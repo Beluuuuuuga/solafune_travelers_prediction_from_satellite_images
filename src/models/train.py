@@ -9,6 +9,7 @@ import math
 import cv2
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import matplotlib.pyplot as plt
+from sklearn.model_selection import KFold
 
 from models import v2_model
 from tensorflow.keras.callbacks import EarlyStopping, LearningRateScheduler, Callback
@@ -33,8 +34,9 @@ if __name__ == "__main__":
     args = sys.argv
     model_name_prefix = args[1] # 保存のモデル名
     epochs = int(args[2]) # epochs
-    lrate_flg = args[3] # True or False
-    log_flg = args[4] # True or False
+    lrate_flg = args[3] # lrate_True or lrate_False
+    log_flg = args[4] # log_True or log_False
+    KFOLDNUM = int(args[5])
 
     # csv読み込み
     train = pd.read_csv('traindataset_anotated.csv', names=["image","traveler"]) # headerあり読み込み
@@ -55,95 +57,144 @@ if __name__ == "__main__":
     target_size = (512, 512)
     batch_size = 4
 
-    train_datagen = ImageDataGenerator(
-        rescale=1./255,
-        rotation_range=15,
-        shear_range=0.2,
-        horizontal_flip=True,
-        width_shift_range=0.1,
-        height_shift_range=0.1,
-        zca_whitening=True # ZCA白色化 
-    )
-
-    train_datagenerator = train_datagen.flow_from_dataframe(
-        train,
-        "data/trainimage/image",
-        x_col='image',
-        y_col='traveler',
-        target_size=target_size,
-        class_mode="raw" # for regression
-    )
-
-    valid_datagen = ImageDataGenerator(rescale=1./255)
-    valid_datagenerator = valid_datagen.flow_from_dataframe(
-        test,
-        "data/testimage/image",
-        x_col='image',
-        y_col='traveler',
-        target_size=target_size,
-        class_mode="raw" # for regression
-    )
-
-    # 学習
-    model = v2_model()
+    # 早期終了
     early_stop = EarlyStopping(monitor='val_loss', patience=7, verbose=1, mode='auto')
 
-    # 動的学習率変化
-    history = None
-    if lrate_flg == "lrate_True":
-        lrate = LearningRateScheduler(step_decay)
-        history = model.fit(train_datagenerator,
-    #                     steps_per_epoch=int(total_train//batch_size),
-                        epochs=epochs,
-                        validation_data=valid_datagenerator,
-    #                     validation_steps=int(total_valid//batch_size),
-                        verbose=1,
-                        shuffle=True,
-                        callbacks=[early_stop, lrate])
-    elif lrate_flg == "lrate_False":
-        history = model.fit(train_datagenerator,
-    #                     steps_per_epoch=int(total_train//batch_size),
-                        epochs=epochs,
-                        validation_data=valid_datagenerator,
-    #                     validation_steps=int(total_valid//batch_size),
-                        verbose=1,
-                        shuffle=True,
-                        callbacks=[early_stop])
+    # Cross Validation
+    total_val_loss = []
+    df = pd.concat([train, test])
+    summary_upload = pd.read_csv('uploadfile.csv', names=["image","traveler1","traveler2","traveler3","traveler4","inter_traveler"]) # headerあり読み込み
+    summary_upload["inter_traveler"] = 0
+    kf = KFold(n_splits=KFOLDNUM)
+    for i, (k_train, k_test) in enumerate(kf.split(df), 1): # 1からスタート
+        print("Fold",i)
+        train = df.iloc[k_train]
+        test = df.iloc[k_test]
 
-    # 結果保存
-    model_path = 'models/' + model_name_prefix + '_model.h5'
-    model.save(model_path)
+        # for k fold column
+        column_name = "traveler" + str(i)
+        summary_upload[column_name] = 0
 
-    hist_df = pd.DataFrame(history.history)
-    csv_his_path = 'csvs/history/' +  model_name_prefix + '_history.csv'
-    hist_df.to_csv(csv_his_path)
+        # ToDo: 後で関数にする
+        train_datagen = ImageDataGenerator(
+            rescale=1./255,
+            rotation_range=15,
+            shear_range=0.2,
+            horizontal_flip=True,
+            width_shift_range=0.1,
+            height_shift_range=0.1,
+            zca_whitening=True # ZCA白色化 
+        )
 
-    plt.figure()
-    hist_df[['loss', 'val_loss']].plot()
-    plt.ylabel('loss')
-    plt.xlabel('epoch')
-    fig_path = 'reports/' + model_name_prefix + '_loss.png'    
-    plt.savefig(fig_path)
-    plt.close()
+        train_datagenerator = train_datagen.flow_from_dataframe(
+            train,
+            # "data/trainimage/image",
+            "data/mergeimage/image",
+            x_col='image',
+            y_col='traveler',
+            target_size=target_size,
+            class_mode="raw" # for regression
+        )
 
-    # 推論
-    upload = pd.read_csv('uploadfile.csv', names=["image","traveler"]) # headerあり読み込み
-    evaluate_iter = pathlib.Path('data/evaluatemodel/image').glob('*.jpg')
-    for evaluate_path in evaluate_iter:
-        _path = str(evaluate_path)
-        _path = _path.split('/')[-1]
-        evaluate_img = cv2.imread(str(evaluate_path))
-        evaluate_img =  cv2.cvtColor(evaluate_img, cv2.COLOR_BGR2RGB)
-        evaluate_img =  cv2.resize(evaluate_img, (512, 512))
-        evaluate_img = np.array(evaluate_img / 255.)
-        evaluate_img = evaluate_img.reshape(1, 512, 512, 3)
-        train_y_log1p = model.predict(evaluate_img)[0][0]
+        valid_datagen = ImageDataGenerator(rescale=1./255)
+        valid_datagenerator = valid_datagen.flow_from_dataframe(
+            test,
+            # "data/testimage/image",
+            "data/mergeimage/image",
+            x_col='image',
+            y_col='traveler',
+            target_size=target_size,
+            class_mode="raw" # for regression
+        )
 
-        # 対数変換を元に戻す
-        if log_flg == "log_True":
-            train_y_log1p = np.exp(train_y_log1p) - 1
+        # 学習
+        model = v2_model()
 
-        upload.loc[upload['image'] == _path, 'traveler'] = int(train_y_log1p)
+        # 動的学習率変化
+        history = None
+        if lrate_flg == "lrate_True":
+            lrate = LearningRateScheduler(step_decay)
+            history = model.fit(train_datagenerator,
+        #                     steps_per_epoch=int(total_train//batch_size),
+                            epochs=epochs,
+                            # epochs=1,
+                            validation_data=valid_datagenerator,
+        #                     validation_steps=int(total_valid//batch_size),
+                            verbose=1,
+                            shuffle=True,
+                            callbacks=[early_stop, lrate])
+        elif lrate_flg == "lrate_False":
+            history = model.fit(train_datagenerator,
+        #                     steps_per_epoch=int(total_train//batch_size),
+                            epochs=epochs,
+                            validation_data=valid_datagenerator,
+        #                     validation_steps=int(total_valid//batch_size),
+                            verbose=1,
+                            shuffle=True,
+                            callbacks=[early_stop])
+
+        # 結果保存
+        model_path = 'models/' + model_name_prefix +  '_' + str(i) + '_model.h5'
+        model.save(model_path)
+
+        hist_df = pd.DataFrame(history.history)
+        csv_his_path = 'csvs/history/' +  model_name_prefix +  '_' + str(i) + '_history.csv'
+        hist_df.to_csv(csv_his_path)
+
+        plt.figure()
+        hist_df[['loss', 'val_loss']].plot()
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        fig_path = 'reports/' + model_name_prefix +  '_' + str(i) + '_loss.png'    
+        plt.savefig(fig_path)
+        plt.close()
+
+        # val loss 追加
+        total_val_loss.append(history.history['val_loss'][-1])
+
+        # 推論
+        upload = pd.read_csv('uploadfile.csv', names=["image","traveler"]) # headerあり読み込み
+        evaluate_iter = pathlib.Path('data/evaluatemodel/image').glob('*.jpg')
+        for evaluate_path in evaluate_iter:
+            _path = str(evaluate_path)
+            _path = _path.split('/')[-1]
+            evaluate_img = cv2.imread(str(evaluate_path))
+            evaluate_img =  cv2.cvtColor(evaluate_img, cv2.COLOR_BGR2RGB)
+            evaluate_img =  cv2.resize(evaluate_img, (512, 512))
+            evaluate_img = np.array(evaluate_img / 255.)
+            evaluate_img = evaluate_img.reshape(1, 512, 512, 3)
+            predict_num = model.predict(evaluate_img)[0][0]
+
+            # 対数変換を元に戻す
+            if log_flg == "log_True":
+                train_y_log1p = np.exp(predict_num) - 1
+
+            upload.loc[upload['image'] == _path, 'traveler'] = int(predict_num)
+            summary_upload.loc[upload['image'] == _path, column_name] = int(predict_num)
+            summary_upload.loc[upload['image'] == _path, 'inter_traveler'] += int(predict_num) / KFOLDNUM # あらかじめ割ったものを足す
+
+        
+        sub_csv_path = 'csvs/submit/' + model_name_prefix +  '_' + str(i) + '.csv'
+        upload.to_csv(sub_csv_path, header=False, index=False)
+
+    # val loss
+    string = ""
+    for i, loss in enumerate(total_val_loss,1):
+        _str = "Fold " + str(i) + ": " + str(loss) + ", "
+        print(_str)
+        string += _str
+    print(string)
+
+    summary_upload["traveler"] =  summary_upload["inter_traveler"].apply(lambda x: round(x))
+    sub_csv_path = 'csvs/submit/' + model_name_prefix + '_inter' + '.csv'
+    summary_upload.to_csv(sub_csv_path, header=True, index=False)
+
+    # 提出用にカラム削除
+    del summary_upload['traveler1']
+    del summary_upload['traveler2']
+    del summary_upload['traveler3']
+    del summary_upload['traveler4']
+    del summary_upload['inter_traveler']
+    sub_csv_path = 'csvs/submit/' + model_name_prefix + '_submit' + '.csv'
+    summary_upload.to_csv(sub_csv_path, header=False, index=False)
     
-    sub_csv_path = 'csvs/submit/' + model_name_prefix + '.csv'
-    upload.to_csv(sub_csv_path, header=False, index=False)
