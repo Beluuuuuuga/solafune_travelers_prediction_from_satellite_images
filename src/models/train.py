@@ -5,6 +5,7 @@ import os
 import pathlib
 import glob
 import math
+import random
 
 import cv2
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
@@ -13,23 +14,41 @@ from sklearn.model_selection import KFold
 
 from models import v2_model
 from tensorflow.keras.callbacks import EarlyStopping, LearningRateScheduler, Callback
-
+import tensorflow as tf
 
 # 学習率スケジューリング
 def step_decay(epoch):
     # initial_lrate = 0.001 # 学習率の初期値
-    initial_lrate = 0.01 # 学習率の初期値
+    initial_lrate = 0.01 # 学習率の初期値 ~v9
+    # initial_lrate = 0.005 # 学習率の初期値 v11
     drop = 0.5 # 減衰率は50%
     # epochs_drop = 10.0 # 10エポックごとに減衰
     epochs_drop = 10.0 # 10エポックごとに減衰
+    # epochs_drop = 15.0 # 10エポックごとに減衰
     lrate = initial_lrate * math.pow(
         drop,
         math.floor((epoch) / epochs_drop)
     )
     return lrate
 
+# 乱数設定
+def set_randvalue(value):
+    # Set a seed value
+    seed_value= value 
+    # 1. Set `PYTHONHASHSEED` environment variable at a fixed value
+    os.environ['PYTHONHASHSEED']=str(seed_value)
+    # 2. Set `python` built-in pseudo-random generator at a fixed value
+    random.seed(seed_value)
+    # 3. Set `numpy` pseudo-random generator at a fixed value
+    np.random.seed(seed_value)
+    # 4. Set `tensorflow` pseudo-random generator at a fixed value
+    tf.random.set_seed(seed_value)
 
 if __name__ == "__main__":
+
+    # 再現のため乱数を設定
+    seed_value = 42
+    set_randvalue(seed_value)
 
     args = sys.argv
     model_name_prefix = args[1] # 保存のモデル名
@@ -62,10 +81,11 @@ if __name__ == "__main__":
 
     # Cross Validation
     total_val_loss = []
-    df = pd.concat([train, test])
+    tmp_df = pd.concat([train, test])
+    df = tmp_df.sample(frac=1, random_state=seed_value) # 乱数固定 0 => 42 from v12
     summary_upload = pd.read_csv('uploadfile.csv', names=["image","traveler1","traveler2","traveler3","traveler4","inter_traveler"]) # headerあり読み込み
     summary_upload["inter_traveler"] = 0
-    kf = KFold(n_splits=KFOLDNUM)
+    kf = KFold(n_splits=KFOLDNUM, shuffle=True, random_state=None)
     for i, (k_train, k_test) in enumerate(kf.split(df), 1): # 1からスタート
         print("Fold",i)
         train = df.iloc[k_train]
@@ -93,7 +113,8 @@ if __name__ == "__main__":
             x_col='image',
             y_col='traveler',
             target_size=target_size,
-            class_mode="raw" # for regression
+            class_mode="raw", # for regression
+            seed=seed_value
         )
 
         valid_datagen = ImageDataGenerator(rescale=1./255)
@@ -104,7 +125,8 @@ if __name__ == "__main__":
             x_col='image',
             y_col='traveler',
             target_size=target_size,
-            class_mode="raw" # for regression
+            class_mode="raw", # for regression
+            seed=seed_value
         )
 
         # 学習
@@ -197,4 +219,6 @@ if __name__ == "__main__":
     del summary_upload['inter_traveler']
     sub_csv_path = 'csvs/submit/' + model_name_prefix + '_submit' + '.csv'
     summary_upload.to_csv(sub_csv_path, header=False, index=False)
-    
+
+    ave = sum(total_val_loss)/len(total_val_loss)
+    print("Validation lossの平均値: ", ave)
