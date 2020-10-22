@@ -12,8 +12,8 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import matplotlib.pyplot as plt
 from sklearn.model_selection import KFold
 
-from models import v2_model
-from tensorflow.keras.callbacks import EarlyStopping, LearningRateScheduler, Callback
+from models import v2_model, vgg16
+from tensorflow.keras.callbacks import EarlyStopping, LearningRateScheduler, Callback, ModelCheckpoint
 import tensorflow as tf
 
 # 学習率スケジューリング
@@ -57,6 +57,10 @@ if __name__ == "__main__":
     log_flg = args[4] # log_True or log_False
     KFOLDNUM = int(args[5])
 
+    # imgsize = 224 # 画像サイズ 後で動的にする
+    imgsize = 512 # 画像サイズ 後で動的にする
+
+
     # csv読み込み
     train = pd.read_csv('traindataset_anotated.csv', names=["image","traveler"]) # headerあり読み込み
     train_nomarlized = train.copy()
@@ -73,8 +77,8 @@ if __name__ == "__main__":
         test = test_nomarlized
     else: pass
 
-    target_size = (512, 512)
-    batch_size = 4
+    target_size = (imgsize, imgsize)
+    batch_size = 10
 
     # 早期終了
     early_stop = EarlyStopping(monitor='val_loss', patience=7, verbose=1, mode='auto')
@@ -82,7 +86,7 @@ if __name__ == "__main__":
     # Cross Validation
     total_val_loss = []
     tmp_df = pd.concat([train, test])
-    df = tmp_df.sample(frac=1, random_state=seed_value) # 乱数固定 0 => 42 from v12
+    df = tmp_df.sample(frac=1, random_state=0) # 乱数固定 0 => 42 from v12
     summary_upload = pd.read_csv('uploadfile.csv', names=["image","traveler1","traveler2","traveler3","traveler4","inter_traveler"]) # headerあり読み込み
     summary_upload["inter_traveler"] = 0
     kf = KFold(n_splits=KFOLDNUM, shuffle=True, random_state=None)
@@ -114,6 +118,7 @@ if __name__ == "__main__":
             y_col='traveler',
             target_size=target_size,
             class_mode="raw", # for regression
+            batch_size=batch_size,
             seed=seed_value
         )
 
@@ -126,11 +131,21 @@ if __name__ == "__main__":
             y_col='traveler',
             target_size=target_size,
             class_mode="raw", # for regression
+            batch_size=batch_size,
             seed=seed_value
         )
 
         # 学習
         model = v2_model()
+        # model = vgg16(imgsize)
+
+        # checkpointの設定
+        model_path = 'models/' + model_name_prefix +  '_' + "fold" + str(i+1) + "_best_model.hdf5"
+        checkpoint = ModelCheckpoint(
+                    filepath=model_path,
+                    monitor='val_loss',
+                    save_best_only=True,
+                    period=1)
 
         # 動的学習率変化
         history = None
@@ -144,7 +159,7 @@ if __name__ == "__main__":
         #                     validation_steps=int(total_valid//batch_size),
                             verbose=1,
                             shuffle=True,
-                            callbacks=[early_stop, lrate])
+                            callbacks=[early_stop, lrate, checkpoint])
         elif lrate_flg == "lrate_False":
             history = model.fit(train_datagenerator,
         #                     steps_per_epoch=int(total_train//batch_size),
@@ -153,11 +168,13 @@ if __name__ == "__main__":
         #                     validation_steps=int(total_valid//batch_size),
                             verbose=1,
                             shuffle=True,
-                            callbacks=[early_stop])
+                            callbacks=[early_stop, checkpoint])
 
         # 結果保存
-        model_path = 'models/' + model_name_prefix +  '_' + str(i) + '_model.h5'
-        model.save(model_path)
+        # model_path = 'models/' + model_name_prefix +  '_' + str(i) + '_model.h5'
+        # model.save(model_path)
+        # 最もlossが小さいモデルをロード
+        new_model = tf.keras.models.load_model(model_path)
 
         hist_df = pd.DataFrame(history.history)
         csv_his_path = 'csvs/history/' +  model_name_prefix +  '_' + str(i) + '_history.csv'
@@ -172,7 +189,7 @@ if __name__ == "__main__":
         plt.close()
 
         # val loss 追加
-        total_val_loss.append(history.history['val_loss'][-1])
+        total_val_loss.append(min(history.history['val_loss'])) # 最小値を取得
 
         # 推論
         upload = pd.read_csv('uploadfile.csv', names=["image","traveler"]) # headerあり読み込み
@@ -182,10 +199,10 @@ if __name__ == "__main__":
             _path = _path.split('/')[-1]
             evaluate_img = cv2.imread(str(evaluate_path))
             evaluate_img =  cv2.cvtColor(evaluate_img, cv2.COLOR_BGR2RGB)
-            evaluate_img =  cv2.resize(evaluate_img, (512, 512))
+            evaluate_img =  cv2.resize(evaluate_img, (imgsize, imgsize))
             evaluate_img = np.array(evaluate_img / 255.)
-            evaluate_img = evaluate_img.reshape(1, 512, 512, 3)
-            predict_num = model.predict(evaluate_img)[0][0]
+            evaluate_img = evaluate_img.reshape(1, imgsize, imgsize, 3)
+            predict_num = new_model.predict(evaluate_img)[0][0]
 
             # 対数変換を元に戻す
             if log_flg == "log_True":
