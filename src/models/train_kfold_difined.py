@@ -61,8 +61,17 @@ if __name__ == "__main__":
 
 
     # csv読み込み
-    train = pd.read_csv('traindataset_anotated.csv', names=["image","traveler"]) # headerあり読み込み
-    test = pd.read_csv('testdataset_anotated.csv', names=["image","traveler"]) # headerあり読み込み
+    train1 = pd.read_csv('traindataset_anotated_kfold1.csv', names=["image","traveler"]) # headerあり読み込み
+    train2 = pd.read_csv('traindataset_anotated_kfold2.csv', names=["image","traveler"]) # headerあり読み込み
+    train3 = pd.read_csv('traindataset_anotated_kfold3.csv', names=["image","traveler"]) # headerあり読み込み
+    df = [train1, train2, train3]
+
+    kfolds = [
+        [[0,1],[2]],
+        [[1,2],[0]],
+        [[2,0],[1]]
+        ]
+
 
     target_size = (imgsize, imgsize)
     batch_size = 10
@@ -72,15 +81,23 @@ if __name__ == "__main__":
 
     # Cross Validation
     total_val_loss = []
-    tmp_df = pd.concat([train, test])
-    df = tmp_df.sample(frac=1, random_state=0) # 乱数固定 0 => 42 from v12
     summary_upload = pd.read_csv('uploadfile.csv', names=["image","traveler1","traveler2","traveler3","traveler4","inter_traveler"]) # headerあり読み込み
     summary_upload["inter_traveler"] = 0
-    kf = KFold(n_splits=KFOLDNUM, shuffle=True, random_state=None)
-    for i, (k_train, k_test) in enumerate(kf.split(df), 1): # 1からスタート
+    # kf = KFold(n_splits=KFOLDNUM, shuffle=True, random_state=None)
+    # for i, (k_train, k_test) in enumerate(kf.split(df), 1): # 1からスタート
+
+    for i, kfolds_idxes in enumerate(kfolds, 1):
+
+        train_idxes, valid_idx = kfolds_idxes[0], kfolds_idxes[1][0]
+        tr_idx1, tr_idx2 = train_idxes[0], train_idxes[1]
+        train = pd.concat([df[tr_idx1], df[tr_idx2]])
+        test = df[valid_idx]
+
         print("Fold",i)
-        train = df.iloc[k_train]
-        test = df.iloc[k_test]
+        print(i, train_idxes)
+
+        # train = df.iloc[k_train]
+        # test = df.iloc[k_test]
 
         # for k fold column
         column_name = "traveler" + str(i)
@@ -176,7 +193,8 @@ if __name__ == "__main__":
         plt.close()
 
         # val loss 追加
-        total_val_loss.append(min(history.history['val_loss'])) # 最小値を取得
+        fold_loss = min(history.history['val_loss'])
+        total_val_loss.append(fold_loss) # 最小値を取得
 
         # 推論
         upload = pd.read_csv('uploadfile.csv', names=["image","traveler"]) # headerあり読み込み
@@ -195,8 +213,7 @@ if __name__ == "__main__":
             summary_upload.loc[upload['image'] == _path, column_name] = int(predict_num)
             summary_upload.loc[upload['image'] == _path, 'inter_traveler'] += int(predict_num) / KFOLDNUM # あらかじめ割ったものを足す
 
-        
-        sub_csv_path = 'csvs/submit/' + model_name_prefix +  '_' + str(i) + '.csv'
+        sub_csv_path = 'csvs/submit/' + model_name_prefix +  '_' + str(i) + '_' + str(fold_loss) + '.csv'
         upload.to_csv(sub_csv_path, header=False, index=False)
 
     # val loss
@@ -211,14 +228,14 @@ if __name__ == "__main__":
     sub_csv_path = 'csvs/submit/' + model_name_prefix + '_inter' + '.csv'
     summary_upload.to_csv(sub_csv_path, header=True, index=False)
 
+    ave_loss = sum(total_val_loss)/len(total_val_loss)
+    print("Validation lossの平均値: ", ave_loss)
+
     # 提出用にカラム削除
     del summary_upload['traveler1']
     del summary_upload['traveler2']
     del summary_upload['traveler3']
     del summary_upload['traveler4']
     del summary_upload['inter_traveler']
-    sub_csv_path = 'csvs/submit/' + model_name_prefix + '_submit' + '.csv'
+    sub_csv_path = 'csvs/submit/' + model_name_prefix + '_submit' + '_' + str(ave_loss) + '.csv'
     summary_upload.to_csv(sub_csv_path, header=False, index=False)
-
-    ave = sum(total_val_loss)/len(total_val_loss)
-    print("Validation lossの平均値: ", ave)
