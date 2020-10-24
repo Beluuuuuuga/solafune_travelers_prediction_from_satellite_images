@@ -54,8 +54,7 @@ if __name__ == "__main__":
     model_name_prefix = args[1] # 保存のモデル名
     epochs = int(args[2]) # epochs
     lrate_flg = args[3] # lrate_True or lrate_False
-    log_flg = args[4] # log_True or log_False
-    KFOLDNUM = int(args[5])
+    KFOLDNUM = int(args[4])
 
     # imgsize = 224 # 画像サイズ 後で動的にする
     imgsize = 512 # 画像サイズ 後で動的にする
@@ -63,19 +62,7 @@ if __name__ == "__main__":
 
     # csv読み込み
     train = pd.read_csv('traindataset_anotated.csv', names=["image","traveler"]) # headerあり読み込み
-    train_nomarlized = train.copy()
-    train_nomarlized['image'] = train['image']
-    train_nomarlized["traveler"] = np.log1p(train["traveler"])
-
     test = pd.read_csv('testdataset_anotated.csv', names=["image","traveler"]) # headerあり読み込み
-    test_nomarlized = test.copy()
-    test_nomarlized['image'] = test['image']
-    test_nomarlized["traveler"] = np.log1p(test["traveler"])
-
-    if log_flg == "log_True":
-        train = train_nomarlized
-        test = test_nomarlized
-    else: pass
 
     target_size = (imgsize, imgsize)
     batch_size = 10
@@ -203,10 +190,6 @@ if __name__ == "__main__":
             evaluate_img = np.array(evaluate_img / 255.)
             evaluate_img = evaluate_img.reshape(1, imgsize, imgsize, 3)
             predict_num = new_model.predict(evaluate_img)[0][0]
-
-            # 対数変換を元に戻す
-            if log_flg == "log_True":
-                train_y_log1p = np.exp(predict_num) - 1
 
             upload.loc[upload['image'] == _path, 'traveler'] = int(predict_num)
             summary_upload.loc[upload['image'] == _path, column_name] = int(predict_num)
