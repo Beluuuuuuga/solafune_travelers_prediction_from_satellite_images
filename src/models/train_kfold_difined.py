@@ -8,6 +8,7 @@ import math
 import random
 
 import cv2
+from tqdm import tqdm
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import matplotlib.pyplot as plt
 from sklearn.model_selection import KFold
@@ -109,8 +110,10 @@ if __name__ == "__main__":
             rotation_range=15,
             shear_range=0.2,
             horizontal_flip=True,
+            vertical_flip=True,
             width_shift_range=0.1,
             height_shift_range=0.1,
+            fill_mode='nearest',
             zca_whitening=True # ZCA白色化 
         )
 
@@ -137,6 +140,17 @@ if __name__ == "__main__":
             class_mode="raw", # for regression
             batch_size=batch_size,
             seed=seed_value
+        )
+
+        inference_datagen = ImageDataGenerator(
+            rotation_range=15,
+            # shear_range=0.2,
+            horizontal_flip=True,
+            vertical_flip=True,
+            # width_shift_range=0.1,
+            # height_shift_range=0.1,
+            fill_mode='nearest'
+            # zca_whitening=True # ZCA白色化 
         )
 
         # 学習
@@ -199,7 +213,10 @@ if __name__ == "__main__":
         # 推論
         upload = pd.read_csv('uploadfile.csv', names=["image","traveler"]) # headerあり読み込み
         evaluate_iter = pathlib.Path('data/evaluatemodel/image').glob('*.jpg')
-        for evaluate_path in evaluate_iter:
+        
+        tta_steps = 3
+        for evaluate_path in tqdm(evaluate_iter):
+            
             _path = str(evaluate_path)
             _path = _path.split('/')[-1]
             evaluate_img = cv2.imread(str(evaluate_path))
@@ -207,7 +224,18 @@ if __name__ == "__main__":
             evaluate_img =  cv2.resize(evaluate_img, (imgsize, imgsize))
             evaluate_img = np.array(evaluate_img / 255.)
             evaluate_img = evaluate_img.reshape(1, imgsize, imgsize, 3)
-            predict_num = new_model.predict(evaluate_img)[0][0]
+            # predict_num = new_model.predict(evaluate_img)[0][0]
+
+            # step数だけTTA
+            predictions = []
+            # cnt = 0
+            for _ in range(tta_steps):
+                # cnt += 1
+                # print("TTA step:", cnt)
+                preds = new_model.predict(inference_datagen.flow(evaluate_img, batch_size=1, shuffle=False, seed=seed_value))
+                predictions.append(preds)
+    
+            predict_num = int(np.mean(predictions, axis=0)[0][0])
 
             upload.loc[upload['image'] == _path, 'traveler'] = int(predict_num)
             summary_upload.loc[upload['image'] == _path, column_name] = int(predict_num)
