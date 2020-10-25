@@ -10,6 +10,7 @@ import random
 import cv2
 from tqdm import tqdm
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
 import matplotlib.pyplot as plt
 from sklearn.model_selection import KFold
 
@@ -17,14 +18,18 @@ from models import v2_model, vgg16
 from tensorflow.keras.callbacks import EarlyStopping, LearningRateScheduler, Callback, ModelCheckpoint
 import tensorflow as tf
 
+from ImageDataAugmentor.image_data_augmentor import *
+import albumentations
+
 # 学習率スケジューリング
 def step_decay(epoch):
     # initial_lrate = 0.001 # 学習率の初期値
     initial_lrate = 0.01 # 学習率の初期値 ~v9
     # initial_lrate = 0.005 # 学習率の初期値 v11
     drop = 0.5 # 減衰率は50%
-    # epochs_drop = 10.0 # 10エポックごとに減衰
     epochs_drop = 10.0 # 10エポックごとに減衰
+    # epochs_drop = 5.0 # 10エポックごとに減衰
+    # epochs_drop = 10.0 # 10エポックごとに減衰
     # epochs_drop = 15.0 # 10エポックごとに減衰
     lrate = initial_lrate * math.pow(
         drop,
@@ -104,17 +109,33 @@ if __name__ == "__main__":
         column_name = "traveler" + str(i)
         summary_upload[column_name] = 0
 
+        AUGMENTATIONS = albumentations.Compose([
+            # albumentations.Transpose(p=0.5),
+            albumentations.RandomSunFlare(flare_roi=(0, 0, 1, 1), angle_lower=0.5, p=0.5),
+            albumentations.HorizontalFlip(p=0.5),
+            albumentations.VerticalFlip(p=0.5),
+            albumentations.GaussNoise(mean=100, p=0.5),
+            albumentations.Normalize(std=(0.9,0.9,0.9),p=0.2),
+            albumentations.RGBShift(r_shift_limit=20, g_shift_limit=20, b_shift_limit=20, p=0.5),
+            albumentations.OneOf([
+            albumentations.RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.3),
+            albumentations.RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1)
+        ],p=1),
+        ])
+
         # ToDo: 後で関数にする
-        train_datagen = ImageDataGenerator(
+        train_datagen = ImageDataAugmentor(
             rescale=1./255,
-            rotation_range=15,
-            shear_range=0.2,
-            horizontal_flip=True,
-            vertical_flip=True,
-            width_shift_range=0.1,
-            height_shift_range=0.1,
-            fill_mode='nearest',
-            zca_whitening=True # ZCA白色化 
+            augment=AUGMENTATIONS, augment_seed=seed_value
+            # preprocess_input=None
+            # rotation_range=15,
+            # shear_range=0.2,
+            # horizontal_flip=True,
+            # vertical_flip=True,
+            # width_shift_range=0.1,
+            # height_shift_range=0.1,
+            # fill_mode='nearest',
+            # zca_whitening=True # ZCA白色化 
         )
 
         train_datagenerator = train_datagen.flow_from_dataframe(
@@ -143,13 +164,13 @@ if __name__ == "__main__":
         )
 
         inference_datagen = ImageDataGenerator(
-            rotation_range=15,
+            # rotation_range=15,
             # shear_range=0.2,
             horizontal_flip=True,
             vertical_flip=True,
             # width_shift_range=0.1,
             # height_shift_range=0.1,
-            fill_mode='nearest'
+            # fill_mode='nearest'
             # zca_whitening=True # ZCA白色化 
         )
 
