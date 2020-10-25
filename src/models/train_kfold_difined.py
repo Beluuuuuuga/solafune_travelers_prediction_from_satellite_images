@@ -6,6 +6,7 @@ import pathlib
 import glob
 import math
 import random
+import argparse
 
 import cv2
 from tqdm import tqdm
@@ -56,16 +57,23 @@ if __name__ == "__main__":
     seed_value = 42
     set_randvalue(seed_value)
 
-    args = sys.argv
-    model_name_prefix = args[1] # 保存のモデル名
-    epochs = int(args[2]) # epochs
-    lrate_flg = args[3] # lrate_True or lrate_False
-    KFOLDNUM = int(args[4])
-    model_name = args[5]
+    # args = sys.argv
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--makem', help='model name will be maked')
+    parser.add_argument('--epochs', default=500)
+    parser.add_argument('--kfoldsn', default=3) # default 3
+    parser.add_argument('--usem', help='select model')
+    parser.add_argument('--imgsize', default=512)
+    parser.add_argument('--lrateflag', action='store_true', help='learning rate scheduler')
+    
+    args = parser.parse_args()
 
-    # imgsize = 224 # 画像サイズ 後で動的にする
-    imgsize = 512 # 画像サイズ 後で動的にする
-
+    model_name_prefix = args.makem # 保存のモデル名
+    epochs = args.epochs # epochs
+    KFOLDNUM = args.kfoldsn
+    model_name = args.usem
+    imgsize = args.imgsize # basemodel:512, vgg16:224
+    lrateflag = args.lrateflag
 
     # csv読み込み
     train1 = pd.read_csv('traindataset_anotated_kfold1.csv', names=["image","traveler"]) # headerあり読み込み
@@ -195,7 +203,8 @@ if __name__ == "__main__":
 
         # 動的学習率変化
         history = None
-        if lrate_flg == "lrate_True":
+        if lrateflag:
+            print("Leaning Rate Scheduling")
             lrate = LearningRateScheduler(step_decay)
             history = model.fit(train_datagenerator,
         #                     steps_per_epoch=int(total_train//batch_size),
@@ -206,7 +215,7 @@ if __name__ == "__main__":
                             verbose=1,
                             shuffle=True,
                             callbacks=[early_stop, lrate, checkpoint])
-        elif lrate_flg == "lrate_False":
+        else:
             history = model.fit(train_datagenerator,
         #                     steps_per_epoch=int(total_train//batch_size),
                             epochs=epochs,
