@@ -61,6 +61,7 @@ if __name__ == "__main__":
     epochs = int(args[2]) # epochs
     lrate_flg = args[3] # lrate_True or lrate_False
     KFOLDNUM = int(args[4])
+    model_name = args[5]
 
     # imgsize = 224 # 画像サイズ 後で動的にする
     imgsize = 512 # 画像サイズ 後で動的にする
@@ -175,8 +176,10 @@ if __name__ == "__main__":
         )
 
         # 学習
-        model = v2_model()
         # model = vgg16(imgsize)
+        model = None
+        if model_name == "model_v2":
+            model = v2_model()
 
         # checkpointの設定
         model_path = 'models/' + model_name_prefix +  '_' + "fold" + str(i+1) + "_best_model.hdf5"
