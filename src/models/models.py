@@ -63,6 +63,24 @@ def v3_model():
     return model
 
 
+def v4_model():
+    model = Sequential()
+    model.add(Convolution2D(32, 3, 3, input_shape=(512,512,3))) # 1
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2))) # 2
+    model.add(Dropout(0.5))
+
+    model.add(Flatten()) 
+    model.add(Dense(64)) # 3
+    model.add(Activation('linear'))
+    model.add(Dropout(0.5))
+    model.add(Dense(1)) # 4
+
+    model.compile(loss='mean_squared_logarithmic_error', optimizer='rmsprop')
+
+    return model
+
+
 def vgg16(imgsize):
     
     input_tensor = (imgsize,imgsize, 3)

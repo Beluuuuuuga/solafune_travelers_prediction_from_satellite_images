@@ -14,7 +14,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import matplotlib.pyplot as plt
 from sklearn.model_selection import KFold
 
-from models import v2_model, v3_model, vgg16
+from models import v2_model, v3_model, v4_model, vgg16
 from tensorflow.keras.callbacks import EarlyStopping, LearningRateScheduler, Callback, ModelCheckpoint
 import tensorflow as tf
 
@@ -178,10 +178,12 @@ if __name__ == "__main__":
         # 学習
         # model = vgg16(imgsize)
         model = None
-        if model_name == "model_v2":
+        if model_name == "v2_model":
             model = v2_model()
-        elif model_name == "model_v3":
+        elif model_name == "v3_model":
             model = v3_model()
+        elif model_name == "v4_model":
+            model = v4_model()
 
         # checkpointの設定
         model_path = 'models/' + model_name_prefix +  '_' + "fold" + str(i+1) + "_best_model.hdf5"
