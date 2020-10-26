@@ -95,6 +95,8 @@ if __name__ == "__main__":
     # for path in evaluate_iter:
     #     print(path)
 
+
+
     # csv読み込み
     train1 = pd.read_csv('traindataset_anotated_kfold1.csv', names=["image","traveler"]) # headerあり読み込み
     train2 = pd.read_csv('traindataset_anotated_kfold2.csv', names=["image","traveler"]) # headerあり読み込み
@@ -102,7 +104,10 @@ if __name__ == "__main__":
     
 
     mergedf = pd.concat([train1, train2, train3])
-    y_train = mergedf['traveler'].values
+    y_train = mergedf['traveler'].ravel()
+    # print(y_train.shape)
+    # print(y_train)
+    # exit()
 
     upload = pd.read_csv('uploadfile.csv', names=["image","traveler"]) # headerあり読み込み
     images = upload['image']
@@ -114,17 +119,46 @@ if __name__ == "__main__":
 
     oof_train1, oof_test1 = get_oof(model_prefix1, dfs, upload)
     oof_train2, oof_test2 = get_oof(model_prefix2, dfs, upload)
+
     
-    x_train = np.concatenate(( oof_train1, oof_train2), axis=1)
+
+    
+    oof_train1 = oof_train1.flatten()
+    oof_train1 = oof_train1.reshape(80,1)
+    oof_train1 = np.array(oof_train1, dtype='int')
+    oof_train2 = oof_train2.flatten()
+    oof_train2 = oof_train2.reshape(80,1)
+    oof_train2 = np.array(oof_train2, dtype='int')
+
+    oof_test1 = np.array(oof_test1, dtype='int')
+    oof_test2 = np.array(oof_test2, dtype='int')
+
+    # StackingSubmission = pd.DataFrame({
+    #                                     model_prefix1: oof_train1,
+    #                                     model_prefix2: oof_train2 })
+    # StackingSubmission.to_csv("csvs/submit/v28_StackingSubmission.csv", index=False)
+    print('oof_train1.shape : ', oof_train1.shape)
+    print('oof_train2.shape : ', oof_train2.shape)
+    print('oof_test1.shape : ', oof_test1.shape)
+    print('oof_test2.shape : ', oof_test2.shape)
+    
+    x_train = np.concatenate([oof_train1, oof_train2], axis=1)
     # x_train = np.concatenate(( oof_train1, oof_train1), axis=1)
-    x_test = np.concatenate(( oof_test1, oof_test2), axis=1)
+    x_test = np.concatenate([oof_test1, oof_test2], axis=1)
     # x_test = np.concatenate(( oof_test1, oof_test1), axis=1)
     print('x_train.shape : ', x_train.shape)
     print('x_test.shape : ', x_test.shape)
 
+
+    # モデルのインスタンス作成
+    # mod = xgb.XGBRegressor()
+    # mod.fit(x_train, y_train)
+    # predictions = mod.predict(x_test)
+
     lr = LinearRegression()
     lr.fit(x_train, y_train)
     predictions = lr.predict(x_test)
+
     predictions = np.array(predictions, dtype='int')
 
 
@@ -147,7 +181,7 @@ if __name__ == "__main__":
     # CSVファイルの作成 
     StackingSubmission = pd.DataFrame({ 'image': images,
                                         'traveler': predictions })
-    StackingSubmission.to_csv("StackingSubmission.csv", index=False)
+    StackingSubmission.to_csv("csvs/submit/v28_submit2.csv", header=False, index=False)
 
 
 
