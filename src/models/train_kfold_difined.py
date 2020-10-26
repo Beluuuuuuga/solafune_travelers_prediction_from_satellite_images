@@ -62,6 +62,7 @@ if __name__ == "__main__":
     parser.add_argument('--makem', help='model name will be maked')
     parser.add_argument('--epochs', default=500)
     parser.add_argument('--kfoldsn', default=3) # default 3
+    parser.add_argument('--ttan', default=3) # default 3
     parser.add_argument('--usem', help='select model')
     parser.add_argument('--imgsize', default=512)
     parser.add_argument('--lrateflag', action='store_true', help='learning rate scheduler')
@@ -69,11 +70,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     model_name_prefix = args.makem # 保存のモデル名
-    epochs = args.epochs # epochs
+    epochs = int(args.epochs) # epochs
     KFOLDNUM = args.kfoldsn
     model_name = args.usem
     imgsize = args.imgsize # basemodel:512, vgg16:224
     lrateflag = args.lrateflag
+    ttan = int(args.ttan)
 
     # csv読み込み
     train1 = pd.read_csv('traindataset_anotated_kfold1.csv', names=["image","traveler"]) # headerあり読み込み
@@ -150,7 +152,8 @@ if __name__ == "__main__":
         train_datagenerator = train_datagen.flow_from_dataframe(
             train,
             # "data/trainimage/image",
-            "data/mergeimage/image",
+            # "data/mergeimage/image",
+            "data/mergecropped1700image/image",
             x_col='image',
             y_col='traveler',
             target_size=target_size,
@@ -163,7 +166,8 @@ if __name__ == "__main__":
         valid_datagenerator = valid_datagen.flow_from_dataframe(
             test,
             # "data/testimage/image",
-            "data/mergeimage/image",
+            # "data/mergeimage/image",
+            "data/mergecropped1700image/image",
             x_col='image',
             y_col='traveler',
             target_size=target_size,
@@ -173,14 +177,14 @@ if __name__ == "__main__":
         )
 
         inference_datagen = ImageDataGenerator(
-            # rotation_range=15,
-            # shear_range=0.2,
+            rotation_range=15,
+            shear_range=0.2,
             horizontal_flip=True,
             vertical_flip=True,
-            # width_shift_range=0.1,
-            # height_shift_range=0.1,
-            # fill_mode='nearest'
-            # zca_whitening=True # ZCA白色化 
+            width_shift_range=0.1,
+            height_shift_range=0.1,
+            fill_mode='nearest',
+            zca_whitening=True # ZCA白色化 
         )
 
         # 学習
@@ -194,7 +198,7 @@ if __name__ == "__main__":
             model = v4_model()
 
         # checkpointの設定
-        model_path = 'models/' + model_name_prefix +  '_' + "fold" + str(i+1) + "_best_model.hdf5"
+        model_path = 'models/' + model_name_prefix +  '_' + "fold" + str(i) + "_best_model.hdf5"
         checkpoint = ModelCheckpoint(
                     filepath=model_path,
                     monitor='val_loss',
@@ -251,7 +255,7 @@ if __name__ == "__main__":
         upload = pd.read_csv('uploadfile.csv', names=["image","traveler"]) # headerあり読み込み
         evaluate_iter = pathlib.Path('data/evaluatemodel/image').glob('*.jpg')
         
-        tta_steps = 3
+        # tta_steps = 3
         for evaluate_path in tqdm(evaluate_iter):
             
             _path = str(evaluate_path)
@@ -266,7 +270,7 @@ if __name__ == "__main__":
             # step数だけTTA
             predictions = []
             # cnt = 0
-            for _ in range(tta_steps):
+            for _ in range(ttan):
                 # cnt += 1
                 # print("TTA step:", cnt)
                 preds = new_model.predict(inference_datagen.flow(evaluate_img, batch_size=1, shuffle=False, seed=seed_value))
