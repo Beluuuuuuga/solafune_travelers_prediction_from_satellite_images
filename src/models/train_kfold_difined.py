@@ -14,6 +14,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 import matplotlib.pyplot as plt
 from sklearn.model_selection import KFold
+from sklearn.ensemble import RandomForestRegressor as RFR
 
 from models import v2_model, v3_model, v4_model, vgg16
 from tensorflow.keras.callbacks import EarlyStopping, LearningRateScheduler, Callback, ModelCheckpoint
@@ -51,6 +52,12 @@ def set_randvalue(value):
     # 4. Set `tensorflow` pseudo-random generator at a fixed value
     tf.random.set_seed(seed_value)
 
+def center_crop(img, Lx, Ly):
+    x, y, _ = img.shape
+    startx = x//2 - (Lx//2)
+    starty = y//2 - (Ly//2)    
+    return img[startx:startx+Lx, starty:starty+Ly]
+
 if __name__ == "__main__":
 
     # 再現のため乱数を設定
@@ -73,14 +80,20 @@ if __name__ == "__main__":
     epochs = int(args.epochs) # epochs
     KFOLDNUM = args.kfoldsn
     model_name = args.usem
-    imgsize = args.imgsize # basemodel:512, vgg16:224
+    imgsize = int(args.imgsize) # basemodel:512, vgg16:224
     lrateflag = args.lrateflag
     ttan = int(args.ttan)
 
     # csv読み込み
-    train1 = pd.read_csv('traindataset_anotated_kfold1.csv', names=["image","traveler"]) # headerあり読み込み
-    train2 = pd.read_csv('traindataset_anotated_kfold2.csv', names=["image","traveler"]) # headerあり読み込み
-    train3 = pd.read_csv('traindataset_anotated_kfold3.csv', names=["image","traveler"]) # headerあり読み込み
+    # train1 = pd.read_csv('traindataset_anotated_kfold1.csv', names=["image","traveler"]) # headerあり読み込み
+    # train2 = pd.read_csv('traindataset_anotated_kfold2.csv', names=["image","traveler"]) # headerあり読み込み
+    # train3 = pd.read_csv('traindataset_anotated_kfold3.csv', names=["image","traveler"]) # headerあり読み込み
+    # train1 = pd.read_csv('traindataset_anotated_kfold1_2.csv', names=["image","traveler"]) # headerあり読み込み
+    # train2 = pd.read_csv('traindataset_anotated_kfold2_2.csv', names=["image","traveler"]) # headerあり読み込み
+    # train3 = pd.read_csv('traindataset_anotated_kfold3_2.csv', names=["image","traveler"]) # headerあり読み込み
+    train1 = pd.read_csv('traindataset_anotated_kfold1_3.csv', names=["image","traveler"]) # headerあり読み込み
+    train2 = pd.read_csv('traindataset_anotated_kfold2_3.csv', names=["image","traveler"]) # headerあり読み込み
+    train3 = pd.read_csv('traindataset_anotated_kfold3_3.csv', names=["image","traveler"]) # headerあり読み込み
     df = [train1, train2, train3]
 
     kfolds = [
@@ -95,6 +108,7 @@ if __name__ == "__main__":
 
     # 早期終了
     early_stop = EarlyStopping(monitor='val_loss', patience=7, verbose=1, mode='auto')
+    # early_stop = EarlyStopping(monitor='loss', patience=7, verbose=1, mode='auto')
 
     # Cross Validation
     total_val_loss = []
@@ -104,6 +118,7 @@ if __name__ == "__main__":
     # for i, (k_train, k_test) in enumerate(kf.split(df), 1): # 1からスタート
 
     for i, kfolds_idxes in enumerate(kfolds, 1):
+        # if i == 2: exit()
 
         train_idxes, valid_idx = kfolds_idxes[0], kfolds_idxes[1][0]
         tr_idx1, tr_idx2 = train_idxes[0], train_idxes[1]
@@ -153,7 +168,8 @@ if __name__ == "__main__":
             train,
             # "data/trainimage/image",
             # "data/mergeimage/image",
-            "data/mergecropped1700image/image",
+            # "data/mergecropped1700image/image",
+            "data/mergecropped256image/image",
             x_col='image',
             y_col='traveler',
             target_size=target_size,
@@ -167,7 +183,8 @@ if __name__ == "__main__":
             test,
             # "data/testimage/image",
             # "data/mergeimage/image",
-            "data/mergecropped1700image/image",
+            # "data/mergecropped1700image/image",
+            "data/mergecropped256image/image",
             x_col='image',
             y_col='traveler',
             target_size=target_size,
@@ -196,7 +213,11 @@ if __name__ == "__main__":
             model = v3_model()
         elif model_name == "v4_model":
             model = v4_model()
-
+        elif model_name == "vgg":
+            model = vgg16(imgsize)
+        elif model_name == "rmforest":
+            model = RFR(n_jobs=-1, random_state=seed_value)
+        
         # checkpointの設定
         model_path = 'models/' + model_name_prefix +  '_' + "fold" + str(i) + "_best_model.hdf5"
         checkpoint = ModelCheckpoint(
@@ -255,13 +276,15 @@ if __name__ == "__main__":
         upload = pd.read_csv('uploadfile.csv', names=["image","traveler"]) # headerあり読み込み
         evaluate_iter = pathlib.Path('data/evaluatemodel/image').glob('*.jpg')
         
-        # tta_steps = 3
+        size = 600
         for evaluate_path in tqdm(evaluate_iter):
             
             _path = str(evaluate_path)
             _path = _path.split('/')[-1]
             evaluate_img = cv2.imread(str(evaluate_path))
             evaluate_img =  cv2.cvtColor(evaluate_img, cv2.COLOR_BGR2RGB)
+            evaluate_img = center_crop(evaluate_img, size, size)
+            evaluate_img = cv2.cvtColor(evaluate_img, cv2.COLOR_BGR2RGB)
             evaluate_img =  cv2.resize(evaluate_img, (imgsize, imgsize))
             evaluate_img = np.array(evaluate_img / 255.)
             evaluate_img = evaluate_img.reshape(1, imgsize, imgsize, 3)
