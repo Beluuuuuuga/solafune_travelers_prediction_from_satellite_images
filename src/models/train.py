@@ -122,18 +122,18 @@ if __name__ == "__main__":
             seed=seed_value
         )
 
-        valid_datagen = ImageDataGenerator(rescale=1./255)
-        valid_datagenerator = valid_datagen.flow_from_dataframe(
-            test,
-            # "data/testimage/image",
-            "data/mergeimage/image",
-            x_col='image',
-            y_col='traveler',
-            target_size=target_size,
-            class_mode="raw", # for regression
-            batch_size=batch_size,
-            seed=seed_value
-        )
+        # valid_datagen = ImageDataGenerator(rescale=1./255)
+        # valid_datagenerator = valid_datagen.flow_from_dataframe(
+        #     test,
+        #     # "data/testimage/image",
+        #     "data/mergeimage/image",
+        #     x_col='image',
+        #     y_col='traveler',
+        #     target_size=target_size,
+        #     class_mode="raw", # for regression
+        #     batch_size=batch_size,
+        #     seed=seed_value
+        # )
 
         # 学習
         model = v2_model()
@@ -194,7 +194,12 @@ if __name__ == "__main__":
         # 推論
         upload = pd.read_csv('uploadfile.csv', names=["image","traveler"]) # headerあり読み込み
         evaluate_iter = pathlib.Path('data/evaluatemodel/image').glob('*.jpg')
+        tta_steps = 10
+
         for evaluate_path in evaluate_iter:
+            
+            predictions = []
+        
             _path = str(evaluate_path)
             _path = _path.split('/')[-1]
             evaluate_img = cv2.imread(str(evaluate_path))
@@ -202,7 +207,13 @@ if __name__ == "__main__":
             evaluate_img =  cv2.resize(evaluate_img, (imgsize, imgsize))
             evaluate_img = np.array(evaluate_img / 255.)
             evaluate_img = evaluate_img.reshape(1, imgsize, imgsize, 3)
-            predict_num = new_model.predict(evaluate_img)[0][0]
+            # predict_num = new_model.predict(evaluate_img)[0][0]
+
+                for i in range(tta_steps):
+        preds = model.predict_generator(inference_datagen.flow(evaluate_img, batch_size=1, shuffle=False, seed=42))
+        predictions.append(preds)
+    
+    pred = int(np.mean(predictions, axis=0)[0][0])
 
             # 対数変換を元に戻す
             if log_flg == "log_True":
