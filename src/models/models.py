@@ -1,7 +1,7 @@
 from tensorflow.keras.optimizers import SGD
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten
-from tensorflow.keras.layers import Convolution2D, MaxPooling2D, GlobalMaxPooling2D
+from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten, BatchNormalization
+from tensorflow.keras.layers import Convolution2D, MaxPooling2D, GlobalMaxPooling2D, Concatenate
 from tensorflow.keras.applications.vgg16 import VGG16
 import tensorflow as tf
 from tensorflow.keras.layers import Input
@@ -80,6 +80,40 @@ def v4_model():
 
     return model
 
+# 論文で紹介あったモデル
+# http://cs229.stanford.edu/proj2017/final-reports/5237321.pdf
+# 層数は一緒でバッチ正規化入れてみた
+def v5_model():
+
+    model = Sequential()
+    model.add(Convolution2D(32, 5, 5, input_shape=(512,512,3))) # 1 # kernel 3->5
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2))) # 2
+    # model.add(Dropout(0.25))
+
+    model.add(Convolution2D(32, 3, 3)) # 3
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2))) # 4
+    # model.add(Dropout(0.25))
+
+    model.add(Convolution2D(64, 3, 3)) # 5
+    model.add(BatchNormalization())
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2))) # 6
+    # model.add(Dropout(0.25))
+
+    model.add(Flatten()) 
+    model.add(Dense(512)) # 7 # 128->512
+    # model.add(BatchNormalization())
+    model.add(Activation('linear'))
+    model.add(Dropout(0.5))
+    model.add(Dense(1)) # 8
+
+    model.compile(loss='mean_squared_logarithmic_error', optimizer=tf.keras.optimizers.RMSprop(lr=1e-4))
+
+    return model
 
 def vgg16(imgsize):
     
@@ -114,6 +148,6 @@ def vgg16(imgsize):
 
     model.add(Dense(1)) # 出力層
     # model.compile(loss='mean_squared_logarithmic_error', optimizer='rmsprop')
-    model.compile(loss='mean_squared_logarithmic_error', optimizer=tf.keras.optimizers.RMSprop(lr=1e-5))
+    model.compile(loss='mean_squared_logarithmic_error', optimizer=tf.keras.optimizers.RMSprop(lr=1e-3))
 
     return model
