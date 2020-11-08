@@ -51,46 +51,26 @@ def get_img(mode, path, df, prepro = None):
     
     if mode == 'train' or mode == 'test':
         for i in df.ravel():
-            # imgpath_ = "data/trainimage/image/" + i
+            
             imgpath_ = path + i
             img = cv2.imread(str(imgpath_)) # color
             # img = cv2.imread(str(imgpath_),0) # gray
-            # img = cv2.bitwise_not(img) # 色反転
-            # img = cv2.equalizeHist(img) # 輝度平滑化 グレースケールのみ
+
             img =  cv2.resize(img, (resize, resize))
-            if prepro == "pca":
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                img = prepro.fit_transform(img)
-                # img = np.array(img/ 255.)
-            elif prepro == "hog":
-                img = bgr2hog(img)
-            else:
-                img = np.array(img / 255.)
+            img = np.array(img / 255.)
             img = np.ravel(img)
-            # img = img.reshape(1, len(img))
-            # print(img.shape)
-            # exit()
             images.append(img)
         
         return images
     else:
         for i in df.ravel():
             imgpath_ = path + i
+            
             img = cv2.imread(str(imgpath_)) # color
             # img = cv2.imread(str(imgpath_),0) # gray
-            # img = cv2.bitwise_not(img) # 色反転
-            # img = center_crop('color', img, cropsize, cropsize)
-            # img = center_crop('gray', img, cropsize, cropsize)
-            # img = cv2.equalizeHist(img) # 輝度平滑化 グレースケールのみ
+
             img =  cv2.resize(img, (resize, resize))
-            if prepro == "pca":
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                img = prepro.fit_transform(img)
-                # img = np.array(img)
-            elif prepro == "hog":
-                img = bgr2hog(img)
-            else:
-                img = np.array(img / 255.)
+            img = np.array(img / 255.)
             img = np.ravel(img)
             images.append(img)
         
