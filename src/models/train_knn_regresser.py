@@ -1,3 +1,5 @@
+# Reference: https://qiita.com/fujin/items/128ed7188f7e7df74f2c
+
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
