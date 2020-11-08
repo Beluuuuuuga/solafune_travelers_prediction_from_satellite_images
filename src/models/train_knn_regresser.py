@@ -112,24 +112,6 @@ if __name__ == "__main__":
     # test_images = get_img('test', "data/mergecropped800image/image/", test["image"]) # 1000
     # evaluate_images = get_img('eval', "data/evaluatemodel/image/", evaluation["image"]) # 1000
 
-    # pcaあり
-    # train_images = get_img('train', "data/mergecropped600image/image/", train["image"], "pca")
-    # test_images = get_img('test', "data/mergecropped600image/image/", test["image"], "pca")
-    # evaluate_images = get_img('eval', "data/evaluatemodel/image/", evaluation["image"], "pca")
-
-    # hogあり
-    # train_images = get_img('train', "data/mergecropped600image/image/", train["image"], "hog")
-    # test_images = get_img('test', "data/mergecropped600image/image/", test["image"], "hog")
-    # evaluate_images = get_img('eval', "data/evaluatemodel/image/", evaluation["image"], "hog")
-
-    # SVR
-    # svr = SVR() # on
-    # svr.fit(train_images, train_traveler) # on
-    # pred = svr.predict(test_images)
-    # score = r2_score(pred, test_traveler)
-    # predictions = svr.predict(evaluate_images) # on
-
-
     # xgboost
     train_images = np.array(train_images) # on
     # test_images = np.array(test_images)
@@ -139,14 +121,6 @@ if __name__ == "__main__":
     model = xgb.XGBRegressor() # xgboost # on
     # model = LinearRegression() # 線形回帰
     model.fit(train_images, train_traveler) # on
-
-    # lightbgm
-    # lgb_params = {"objective":"regression", 
-    #           "metric":"mse", 
-    #           "verbosity": 1}
-
-    # lgb_train = lgbm.Dataset(train_images,train_traveler)
-    # model = lgbm.train(lgb_params, lgb_train)
 
     predictions = model.predict(evaluate_images) # on
 
