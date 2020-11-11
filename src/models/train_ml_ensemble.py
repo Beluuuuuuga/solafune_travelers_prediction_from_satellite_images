@@ -47,7 +47,7 @@ def center_crop(mode, img, Lx, Ly):
     starty = y//2 - (Ly//2)    
     return img[startx:startx+Lx, starty:starty+Ly]
 
-def get_img(mode, path, df, prepro = None):
+def get_img(mode, path, df):
     images = []
     # resize = 100
     # resize = 200
